@@ -1,0 +1,97 @@
+{% extends "monitoring/base.html" %}
+{% block title %}{{ app.name }}{% endblock %}
+{% block content %}
+<h1>{{ app.name }} <span class="muted">({{ app.code }})</span></h1>
+<p class="subtitle">
+  {{ app.team.name }} · {{ app.get_tier_display }} · availability objective {{ app.slo_availability }} ·
+  p95 objective {{ app.slo_latency_p95_ms }} ms
+</p>
+
+<nav class="ranges" aria-label="Time range">
+  {% for value, label in ranges %}
+  <a href="?hours={{ value }}"{% if hours == value %} class="active" aria-current="page"{% endif %}>{{ label }}</a>
+  {% endfor %}
+</nav>
+
+<div class="charts">
+  <section class="card chart-card">
+    <h3>p95 latency per {{ bucket_minutes }} min (ms)</h3>
+    <div class="chart-box"><canvas id="latency-chart" aria-label="p95 latency over time"></canvas></div>
+  </section>
+  <section class="card chart-card">
+    <h3>5xx error rate per {{ bucket_minutes }} min (%)</h3>
+    <div class="chart-box"><canvas id="errors-chart" aria-label="Server error rate over time"></canvas></div>
+  </section>
+</div>
+
+<h2>Incidents</h2>
+<div class="card table-wrap">
+  {% if incidents %}
+  <table>
+    <thead><tr><th>#</th><th>Title</th><th>Severity</th><th>Status</th><th>Source</th><th>Opened</th><th>Resolved</th></tr></thead>
+    <tbody>
+      {% for incident in incidents %}
+      <tr>
+        <td>{% if user.is_staff %}<a href="{% url 'admin:monitoring_incident_change' incident.pk %}">{{ incident.pk }}</a>{% else %}{{ incident.pk }}{% endif %}</td>
+        <td>{{ incident.title }}</td>
+        <td><span class="pill sev-{{ incident.severity }}">{{ incident.severity }}</span></td>
+        <td>{{ incident.get_status_display }}</td>
+        <td>{{ incident.get_source_display }}</td>
+        <td>{{ incident.opened_at|date:"d M H:i" }}</td>
+        <td>{{ incident.resolved_at|date:"d M H:i"|default:"-" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">No incidents recorded for this application.</p>
+  {% endif %}
+</div>
+
+{{ chart|json_script:"chart-data" }}
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.js"></script>
+<script>
+  // json_script embeds the data safely (escaped), so the template never builds JavaScript by hand.
+  const data = JSON.parse(document.getElementById("chart-data").textContent);
+  const css = getComputedStyle(document.documentElement);
+  const color = (name) => css.getPropertyValue(name).trim();
+
+  Chart.defaults.color = color("--text-secondary");
+  Chart.defaults.borderColor = color("--border");
+  Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
+
+  const common = {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: false,
+    interaction: { mode: "index", intersect: false },  // hover anywhere on the x axis
+    scales: { x: { ticks: { maxTicksLimit: 8 }, grid: { display: false } }, y: { beginAtZero: true } },
+  };
+
+  new Chart(document.getElementById("latency-chart"), {
+    type: "line",
+    data: {
+      labels: data.labels,
+      datasets: [
+        { label: "p95 latency", data: data.p95, borderColor: color("--series-1"), backgroundColor: color("--series-1"),
+          borderWidth: 2, pointRadius: 0, tension: 0.2 },
+        { label: "Objective", data: data.labels.map(() => data.sloLatency), borderColor: color("--text-muted"),
+          backgroundColor: color("--text-muted"), borderWidth: 1, borderDash: [6, 4], pointRadius: 0 },
+      ],
+    },
+    options: { ...common, plugins: { legend: { position: "bottom", labels: { usePointStyle: true, pointStyle: "line" } } } },
+  });
+
+  new Chart(document.getElementById("errors-chart"), {
+    type: "bar",
+    data: {
+      labels: data.labels,
+      datasets: [{ label: "5xx rate (%)", data: data.errorRatePct, backgroundColor: color("--series-1"), borderRadius: 4, maxBarThickness: 12 }],
+    },
+    options: { ...common, plugins: { legend: { display: false } } },
+  });
+</script>
+{% endblock %}

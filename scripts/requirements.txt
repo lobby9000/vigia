@@ -1,0 +1,6 @@
+# Dependencies of the helper scripts (data generator, traffic simulator, detector calibration)
+numpy==2.5.3
+pandas==3.0.6
+psycopg[binary]==3.3.6
+requests==2.34.2
+scipy==1.18.1  # only for calibrate_detector.py

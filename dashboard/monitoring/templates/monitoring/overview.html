@@ -1,0 +1,73 @@
+{% extends "monitoring/base.html" %}
+{% block title %}Overview{% endblock %}
+{% block content %}
+<h1>Stability overview</h1>
+<p class="subtitle">Last hour of traffic and last 7 days of objectives. Updated {{ generated_at|date:"H:i" }}.</p>
+
+<div class="card table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Application</th>
+        <th>Status</th>
+        <th class="num">Requests 1 h</th>
+        <th class="num">5xx 1 h</th>
+        <th class="num">p95 1 h</th>
+        <th class="num">Availability 7 d</th>
+        <th>Error budget used 7 d</th>
+        <th class="num">Open incidents</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>
+        <td>
+          <a href="{% url 'monitoring:application_detail' row.code %}">{{ row.name }}</a><br>
+          <span class="muted">{{ row.team }} · tier {{ row.tier }}</span>
+        </td>
+        <td><span class="pill health-{{ row.health }}">{{ row.health|capfirst }}</span></td>
+        <td class="num">{{ row.requests }}</td>
+        <td class="num">{% if row.error_pct is not None %}{{ row.error_pct|floatformat:2 }} %{% else %}<span class="muted">n/a</span>{% endif %}</td>
+        <td class="num">
+          {% if row.p95_latency_ms %}{{ row.p95_latency_ms|floatformat:0 }} ms{% else %}<span class="muted">n/a</span>{% endif %}
+          <br><span class="muted">objective {{ row.slo_latency_p95_ms }} ms</span>
+        </td>
+        <td class="num">
+          {% if row.availability_pct is not None %}{{ row.availability_pct|floatformat:3 }} %{% else %}<span class="muted">no data</span>{% endif %}
+          <br><span class="muted">objective {{ row.objective_pct|floatformat:2 }} %</span>
+        </td>
+        <td>
+          {% if row.budget_pct is not None %}
+            <span class="budget{% if row.budget_pct > 100 %} over{% endif %}"><span style="width: {{ row.budget_bar|floatformat:0 }}%"></span></span>{{ row.budget_pct|floatformat:0 }} %
+          {% else %}<span class="muted">n/a</span>{% endif %}
+        </td>
+        <td class="num">{{ row.open_incidents }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<h2>Open incidents</h2>
+<div class="card table-wrap">
+  {% if incidents %}
+  <table>
+    <thead><tr><th>#</th><th>Application</th><th>Title</th><th>Severity</th><th>Status</th><th>Opened</th></tr></thead>
+    <tbody>
+      {% for incident in incidents %}
+      <tr>
+        <td>{% if user.is_staff %}<a href="{% url 'admin:monitoring_incident_change' incident.pk %}">{{ incident.pk }}</a>{% else %}{{ incident.pk }}{% endif %}</td>
+        <td>{{ incident.application.code }}</td>
+        <td>{{ incident.title }}</td>
+        <td><span class="pill sev-{{ incident.severity }}">{{ incident.severity }}</span></td>
+        <td>{{ incident.get_status_display }}</td>
+        <td>{{ incident.opened_at|date:"d M H:i" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">Nothing open. Quiet times.</p>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,52 @@
+# Defaults for running on your laptop. Every value can be overridden with an
+# environment variable using Spring's relaxed binding, for example
+#   spring.datasource.url        -> SPRING_DATASOURCE_URL
+#   vigia.security.jwt-secret    -> VIGIA_SECURITY_JWT_SECRET (or JWT_SECRET, see below)
+
+server:
+  port: 8080
+  shutdown: graceful            # finish in-flight requests before stopping
+
+spring:
+  application:
+    name: ingest-service
+  datasource:
+    # reWriteBatchedInserts lets the PostgreSQL driver turn a JDBC batch into
+    # multi-row INSERT statements: several times faster for event batches.
+    url: jdbc:postgresql://localhost:5432/vigia?reWriteBatchedInserts=true
+    username: vigia
+    password: vigia
+    hikari:
+      maximum-pool-size: 10
+  jpa:
+    open-in-view: false         # no lazy loading from controllers: DTOs are built in services
+    hibernate:
+      ddl-auto: none            # the schema is owned by database/*.sql, never by Hibernate
+    properties:
+      hibernate.jdbc.time_zone: UTC
+  mongodb:
+    # Short timeouts: if MongoDB is down, archiving fails fast instead of
+    # holding every ingestion request for 30 seconds.
+    uri: mongodb://localhost:27017/vigia?serverSelectionTimeoutMS=2000&connectTimeoutMS=2000
+  data:
+    mongodb:
+      auto-index-creation: true # creates the TTL and compound indexes declared on RawEventDocument
+
+vigia:
+  security:
+    # Shared HS256 secret: the same value the analytics API uses to sign tokens.
+    jwt-secret: ${JWT_SECRET:}
+    jwt-issuer: vigia-analytics
+  ingest:
+    max-event-age: 7d           # older events are rejected (422)
+    max-clock-skew: 5m          # events "from the future" beyond this are rejected (422)
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true           # /actuator/health/liveness and /readiness for orchestrators

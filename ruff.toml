@@ -1,0 +1,7 @@
+# Lint and format rules for every Python folder in the repository
+# (analytics-api/pyproject.toml repeats them for that package).
+line-length = 120
+target-version = "py312"
+
+[lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM"]

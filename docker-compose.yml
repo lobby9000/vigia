@@ -1,0 +1,90 @@
+# Vigia: the whole platform on one machine.
+#   docker compose up -d --build      (or ./scripts/bootstrap.sh the first time)
+# Secrets come from .env (see .env.example). Memory limits keep the stack
+# comfortable on an 8 GB laptop.
+
+name: vigia
+
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Runs database/*.sql in order the first time the volume is created
+      - ./database:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  mongo:
+    image: mongo:8.0
+    # MongoDB would otherwise reserve about half of the RAM for its cache.
+    command: ["--wiredTigerCacheSizeGB", "0.25"]
+    volumes:
+      - mongodata:/data/db
+    ports:
+      - "27017:27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  ingest-service:
+    build: ./ingest-service
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}?reWriteBatchedInserts=true
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      SPRING_MONGODB_URI: mongodb://mongo:27017/vigia?serverSelectionTimeoutMS=2000&connectTimeoutMS=2000
+      JWT_SECRET: ${JWT_SECRET}
+    ports:
+      - "8080:8080"
+    mem_limit: 512m
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+
+  analytics-api:
+    build: ./analytics-api
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      MONGO_URL: mongodb://mongo:27017
+      MONGO_DB: vigia
+      JWT_SECRET_KEY: ${JWT_SECRET}
+    ports:
+      - "8000:8000"
+    mem_limit: 384m
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+
+  dashboard:
+    build: ./dashboard
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY}
+      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1
+      DJANGO_CSRF_TRUSTED_ORIGINS: http://localhost:8001,http://127.0.0.1:8001
+    ports:
+      - "8001:8001"
+    mem_limit: 256m
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  mongodata:

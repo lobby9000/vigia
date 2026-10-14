@@ -1,0 +1,25 @@
+# Secrets
+.env
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+dashboard/staticfiles/
+
+# Java / Maven
+ingest-service/target/
+
+# Editors and OS
+.idea/
+*.iml
+.vscode/
+.DS_Store
+
+# Local data
+backups/
+*.dump
+*.log
