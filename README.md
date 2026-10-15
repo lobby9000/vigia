@@ -7,6 +7,8 @@ serves millions of customers and answers the questions an operations team asks
 every day: **is anything degrading right now, are we meeting our service level
 objectives, and when something breaks, where is it coming from?**
 
+**Try it in your browser:** the [`vigia` demo](https://lobby9000.github.io/professional.html?app=terminal&run=vigia) on my site runs the latency detector of `anomaly.py` on one simulated day from `scripts/traffic_model.py`. `vigia old` shows the night false alarm that the calibration removed.
+
 It is a small but complete polyglot platform:
 
 * a **Java / Spring Boot** service that ingests request telemetry from every application,
